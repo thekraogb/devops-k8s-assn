@@ -1,0 +1,100 @@
+name: build and deploy backend
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: app/ecommerce-app-backend
+
+      - name: Build
+        run: npm run build
+        working-directory: app/ecommerce-app-backend
+
+      - name: Run tests
+        run: npm test
+        working-directory: app/ecommerce-app-backend
+        continue-on-error: true
+
+      - name: Login to Azure
+        if: github.event_name == 'workflow_dispatch'
+        uses: azure/login@v2
+        with: 
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build backend docker image
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/be-app:latest .
+        working-directory: app/ecommerce-app-backend
+
+      - name: Push backend docker image
+        if: github.event_name == 'workflow_dispatch'
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/be-app:latest
+
+      - name: Set Terraform Azure credentials
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "ARM_CLIENT_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}" >> $GITHUB_ENV
+
+      - name: Set up Terraform
+        if: github.event_name == 'workflow_dispatch'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Initialize Terraform backend
+        if: github.event_name == 'workflow_dispatch'
+        run: terraform init
+        working-directory: terraform
+
+      - name: Get Terraform outputs (rg, cluster_name)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "RG=$(terraform output -raw resource_group_name)" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=$(terraform output -raw cluster_name)" >> $GITHUB_ENV
+        working-directory: terraform
+
+      - name: Set AKS Context
+        if: github.event_name == 'workflow_dispatch'
+        uses: azure/aks-set-context@v3
+        with:
+          cluster-name: ${{ env.CLUSTER_NAME }} 
+          resource-group: ${{ env.RG }}
+
+      - name: Verify cluster access
+        if: github.event_name == 'workflow_dispatch'
+        run: kubectl get nodes
+
+      - name: Force rollout
+        if: github.event_name == 'workflow_dispatch'
+        run: kubectl rollout restart deployment/backend-deploy -n k8s-assn
+        working-directory: k8s/backend
