@@ -46,14 +46,7 @@ jobs:
           resource-group: ${{ env.RG }}
 
       - name: Verify cluster access
-        run: kubectl get nodes
-
-      - name: Install or Upgrade nginx Ingress
-        run: |
-          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-          helm repo update
-          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --create-namespace --namespace ingress-nginx
-   
+        run: kubectl get nodes   
 
       - name: Install nginx Ingress
         run: |
