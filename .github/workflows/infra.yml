@@ -1,0 +1,59 @@
+name: Terraform Infrastructure - Unified Workflow
+
+on:
+  workflow_dispatch:     
+
+jobs:
+  terraform_infra:
+    name: Provision Azure Infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with: 
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Terraform Azure credentials
+        run: |
+          echo "ARM_CLIENT_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}" >> $GITHUB_ENV 
+       
+
+      # Login to Azure (Service Principal)
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform
+
+      # Validate configuration
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: terraform
+
+      # Plan the changes
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: terraform
+
+      # Apply changes
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: terraform
