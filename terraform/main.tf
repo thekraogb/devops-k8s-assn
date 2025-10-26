@@ -42,7 +42,6 @@ module "aks" {
   default_node_pool_name = "nodepool"
   resource_group_name = module.resource_group.resource_group
   aks_subnet_id       = module.subnets["aks_subnet"].id
-  acr_id              = module.acr.id
 }
 
 

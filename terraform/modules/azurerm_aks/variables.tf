@@ -27,10 +27,6 @@ variable "aks_subnet_id" {
   type        = string
 }
 
-variable "acr_id" {
-  description = "ACR ID"
-  type        = string
-}
 
 
 
