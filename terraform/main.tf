@@ -20,7 +20,6 @@ module "subnets" {
   vnet_name           = module.vnet.virtual_network
   address_prefixes    = each.value.address_space
   location            = local.location
-  nsg_rules           = lookup(each.value, "nsg_rules", [])
 }
 
 module "sql" {
